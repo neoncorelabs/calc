@@ -2,8 +2,8 @@
 
 **Precision Engine.**
 
-The first app under [MonolithHQ](https://github.com/monolithhq), built on
-[`neon-core`](https://github.com/monolithhq/neon-core).
+The first app under [NeonCoreLabs](https://github.com/neoncorelabs), built on
+[`neon-core`](https://github.com/neoncorelabs/neon-core).
 
 ## Status
 
@@ -14,9 +14,9 @@ docs below. Code in `app/` is currently an empty package scaffold matching
 ## Docs
 
 Full specifications live in
-[`monolithhq/docs/calc`](https://github.com/monolithhq/docs/tree/main/calc) —
+[`neoncorelabs/docs/calc`](https://github.com/neoncorelabs/docs/tree/main/calc) —
 this repo doesn't own its own documentation (see
-[`docs/core/PRINCIPLES.md`](https://github.com/monolithhq/docs/blob/main/core/PRINCIPLES.md)).
+[`docs/core/PRINCIPLES.md`](https://github.com/neoncorelabs/docs/blob/main/core/PRINCIPLES.md)).
 
 | Doc | Covers |
 |---|---|
