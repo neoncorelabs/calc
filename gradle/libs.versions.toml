@@ -1,0 +1,14 @@
+[versions]
+kotlin = "2.3.20"
+agp = "9.2.0"
+composeBom = "2026.06.00"
+activityCompose = "1.12.2"
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+
+[libraries]
+compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
+activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
