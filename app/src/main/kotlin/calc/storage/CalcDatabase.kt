@@ -1,6 +1,8 @@
 package calc.storage
 
+import android.content.Context
 import androidx.room.Database
+import androidx.room.Room
 import androidx.room.RoomDatabase
 import calc.model.HistoryEntry
 import calc.model.PinnedResult
@@ -22,4 +24,28 @@ import calc.model.PinnedResult
 abstract class CalcDatabase : RoomDatabase() {
     abstract fun historyDao(): HistoryDao
     abstract fun pinnedDao(): PinnedDao
+
+    companion object {
+        /**
+         * Standard single-instance Room builder, added here (rather than
+         * inline in AppContainer) so the database's own construction
+         * details — file name, singleton guarding — live next to the
+         * class they construct. AppContainer just calls this.
+         *
+         * Not previously present: CALC-ARCH-01 §7's AppContainer snippet
+         * is illustrative only and assumes a `CalcDatabase.build(context)`
+         * factory that didn't exist yet in this class.
+         */
+        @Volatile
+        private var instance: CalcDatabase? = null
+
+        fun build(context: Context): CalcDatabase =
+            instance ?: synchronized(this) {
+                instance ?: Room.databaseBuilder(
+                    context.applicationContext,
+                    CalcDatabase::class.java,
+                    "calc_database"
+                ).build().also { instance = it }
+            }
+    }
 }
