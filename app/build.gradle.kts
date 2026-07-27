@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "calc"
+    namespace = "com.neoncorelabs.calc"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "calc"
+        applicationId = "com.neoncorelabs.calc"
         minSdk = 26
         targetSdk = 36
         versionCode = 1
