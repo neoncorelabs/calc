@@ -4,9 +4,9 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 
 /**
- * Builds a ViewModelProvider.Factory wiring all three ViewModels
- * (CalcViewModel, HistoryViewModel, MemoryViewModel) to their
- * repositories via the given AppContainer.
+ * Builds a ViewModelProvider.Factory wiring all four ViewModels
+ * (CalcViewModel, HistoryViewModel, MemoryViewModel,
+ * SettingsViewModel) to their repositories via the given AppContainer.
  *
  * Uses the current androidx.lifecycle viewModelFactory DSL
  * (lifecycle-viewmodel, confirmed current as of this project's pinned
@@ -35,5 +35,8 @@ fun calcViewModelFactory(container: AppContainer) = viewModelFactory {
     }
     initializer {
         MemoryViewModel(settingsRepository = container.settingsRepository)
+    }
+    initializer {
+        SettingsViewModel(settingsRepository = container.settingsRepository)
     }
 }

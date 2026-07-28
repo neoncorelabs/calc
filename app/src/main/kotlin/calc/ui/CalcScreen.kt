@@ -9,17 +9,23 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import calc.viewmodel.AppContainer
 import calc.viewmodel.CalcScreenStatus
+import calc.viewmodel.CalcStatus
 import calc.viewmodel.CalcViewModel
+import calc.viewmodel.SettingsViewModel
 import calc.viewmodel.calcViewModelFactory
 import neoncore.components.StatusHeader
 import neoncore.theme.NeonDark
@@ -48,6 +54,19 @@ import neoncore.theme.NeonSpacing
  * composition root's structure again, but toggling either currently
  * only changes the header label, nothing else on screen. Flagging so
  * this isn't mistaken for a finished multi-screen flow.
+ *
+ * EXECUTION PULSE (§18): this composable owns detecting the
+ * COMPUTING -> READY transition (step 4 is literally "the System
+ * Status changes," which only this level can observe since it's the
+ * one composing CalcScreenStatus) and firing the completion haptic
+ * (step 5), gated on SettingsViewModel.hapticsEnabled. Per an
+ * explicit decision: ONLY COMPUTING -> READY triggers the haptic —
+ * COMPUTING -> ERROR does not, since §18 never mentions error
+ * completions and §13's error handling is a separate, simpler
+ * animation (400ms red header pulse only, no fade/transition/sweep).
+ * The "Error -> Double pulse" haptic from §15's table is a distinct,
+ * later concern (per-button-press haptics as a whole, not wired in
+ * this batch).
  */
 @Composable
 fun CalcScreen(
@@ -56,11 +75,31 @@ fun CalcScreen(
 ) {
     val factory = remember(container) { calcViewModelFactory(container) }
     val calcViewModel: CalcViewModel = viewModel(factory = factory)
+    val settingsViewModel: SettingsViewModel = viewModel(factory = factory)
     val uiState by calcViewModel.uiState.collectAsState()
+    val hapticsEnabled by settingsViewModel.hapticsEnabled.collectAsState()
+    val haptics = LocalHapticFeedback.current
 
     // Screen-level navigation/mode state — NOT owned by CalcViewModel.
     var historyOpen by remember { mutableStateOf(false) }
     var scientificMode by remember { mutableStateOf(false) }
+
+    // Execution Pulse trigger: an ever-increasing counter, passed to
+    // CalcDisplay, incremented only on a genuine COMPUTING -> READY
+    // edge (see the LaunchedEffect below) — not on every recomposition
+    // where status happens to equal READY.
+    var pulseTrigger by remember { mutableIntStateOf(0) }
+    var previousStatus by remember { mutableStateOf(CalcStatus.READY) }
+
+    LaunchedEffect(uiState.status) {
+        if (previousStatus == CalcStatus.COMPUTING && uiState.status == CalcStatus.READY) {
+            pulseTrigger++
+            if (hapticsEnabled) {
+                haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+            }
+        }
+        previousStatus = uiState.status
+    }
 
     val screenStatus = CalcScreenStatus(
         calculation = uiState.status,
@@ -81,7 +120,8 @@ fun CalcScreen(
 
             CalcDisplay(
                 expression = uiState.expression,
-                result = uiState.preview.ifEmpty { uiState.result }
+                result = uiState.preview.ifEmpty { uiState.result },
+                pulseTrigger = pulseTrigger
             )
 
             // Divider: 1dp, divider color, separates display from
