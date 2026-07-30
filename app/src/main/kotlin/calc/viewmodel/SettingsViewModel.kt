@@ -10,43 +10,30 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /**
- * Owns user preferences (theme, haptics, sound, high contrast) as
- * their own domain, per an explicit decision made when the Execution
- * Pulse animation needed a way to read `hapticsEnabled`: each
- * ViewModel should align with one coherent responsibility —
- * CalcViewModel (calculation), HistoryViewModel (history/pins),
- * MemoryViewModel (M1-M3), and now SettingsViewModel (preferences) —
- * rather than bolting settings access onto whichever ViewModel
- * happened to need one property first.
+ * Owns user preferences (theme, high contrast) as their own domain —
+ * one ViewModel per coherent responsibility, alongside CalcViewModel
+ * (calculation), HistoryViewModel (history/pins), and MemoryViewModel
+ * (M1-M3), rather than bolting settings access onto whichever
+ * ViewModel happened to need one property first.
  *
- * Intentionally small right now: only hapticsEnabled is actually
- * consumed anywhere yet (by the Execution Pulse's completion haptic).
- * themeMode/soundEnabled/highContrastEnabled are exposed alongside it
- * because SettingsRepository already provides all four with identical
- * shape (CALC-DATA-01 §3.3) and a future Settings screen will need
- * all of them — wiring them together now avoids a near-identical
- * second edit to this file later, without expanding scope: nothing
- * currently reads themeMode/soundEnabled/highContrastEnabled from
- * this ViewModel, they're just available for whenever the Settings
- * screen batch needs them.
+ * Does NOT expose hapticsEnabled/soundEnabled. Explicit product
+ * decision: CALC does not use sound or haptic feedback — visual
+ * transitions (the Execution Pulse, live preview, status color) are
+ * the calculator's only feedback channel. This is a CALC-specific UI
+ * decision, not a change to the underlying settings infrastructure —
+ * SettingsRepository/PreferencesManager still support
+ * hapticsEnabled/soundEnabled unchanged (CALC-DATA-01 §3.3), in case
+ * a future NeonCoreLabs app wants them; SettingsViewModel simply
+ * doesn't surface them to CALC's UI. See CALC-UI-01 §15/§18's
+ * revision notes for the full rationale.
+ *
+ * themeMode/highContrastEnabled remain — visual settings, unaffected
+ * by the sound/haptics decision, and a future Settings screen will
+ * still need them.
  */
 class SettingsViewModel(
     private val settingsRepository: SettingsRepository
 ) : ViewModel() {
-
-    val hapticsEnabled: StateFlow<Boolean> = settingsRepository.hapticsEnabled
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            // Default true: CALC-DATA-01 §3.3 / PreferencesManager's
-            // own DataStore default for this key is true (confirmed
-            // by reading PreferencesManager before writing this) — the
-            // stateIn initialValue mirrors that same default rather
-            // than guessing false, so there's no flash of
-            // haptics-off before the first real DataStore emission
-            // arrives.
-            initialValue = true
-        )
 
     val themeMode: StateFlow<ThemeMode> = settingsRepository.themeMode
         .stateIn(
@@ -57,17 +44,6 @@ class SettingsViewModel(
             initialValue = ThemeMode.DARK
         )
 
-    val soundEnabled: StateFlow<Boolean> = settingsRepository.soundEnabled
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            // Default false: PreferencesManager's DataStore default
-            // for this key is false, per §3.3 (confirmed by reading
-            // PreferencesManager directly — don't assume this matches
-            // hapticsEnabled's default, they differ).
-            initialValue = false
-        )
-
     val highContrastEnabled: StateFlow<Boolean> = settingsRepository.highContrastEnabled
         .stateIn(
             scope = viewModelScope,
@@ -76,16 +52,8 @@ class SettingsViewModel(
             initialValue = false
         )
 
-    fun setHapticsEnabled(enabled: Boolean) {
-        viewModelScope.launch { settingsRepository.setHapticsEnabled(enabled) }
-    }
-
     fun setThemeMode(mode: ThemeMode) {
         viewModelScope.launch { settingsRepository.setThemeMode(mode) }
-    }
-
-    fun setSoundEnabled(enabled: Boolean) {
-        viewModelScope.launch { settingsRepository.setSoundEnabled(enabled) }
     }
 
     fun setHighContrastEnabled(enabled: Boolean) {

@@ -17,15 +17,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import calc.viewmodel.AppContainer
 import calc.viewmodel.CalcScreenStatus
 import calc.viewmodel.CalcStatus
 import calc.viewmodel.CalcViewModel
-import calc.viewmodel.SettingsViewModel
 import calc.viewmodel.calcViewModelFactory
 import neoncore.components.StatusHeader
 import neoncore.theme.NeonDark
@@ -55,18 +52,20 @@ import neoncore.theme.NeonSpacing
  * only changes the header label, nothing else on screen. Flagging so
  * this isn't mistaken for a finished multi-screen flow.
  *
- * EXECUTION PULSE (§18): this composable owns detecting the
- * COMPUTING -> READY transition (step 4 is literally "the System
- * Status changes," which only this level can observe since it's the
- * one composing CalcScreenStatus) and firing the completion haptic
- * (step 5), gated on SettingsViewModel.hapticsEnabled. Per an
- * explicit decision: ONLY COMPUTING -> READY triggers the haptic —
- * COMPUTING -> ERROR does not, since §18 never mentions error
- * completions and §13's error handling is a separate, simpler
- * animation (400ms red header pulse only, no fade/transition/sweep).
- * The "Error -> Double pulse" haptic from §15's table is a distinct,
- * later concern (per-button-press haptics as a whole, not wired in
- * this batch).
+ * EXECUTION PULSE (§18, revised): this composable owns detecting the
+ * COMPUTING -> READY transition and driving `pulseTrigger`, which
+ * CalcDisplay uses to play the visual fade + sweep-line animation.
+ *
+ * CALC does not use haptic or sound feedback — explicit product
+ * decision, revising §15/§18 of CALC-UI-01: visual transitions (this
+ * Execution Pulse, live preview, status color) are the calculator's
+ * only feedback channel. This is CALC-specific; the underlying
+ * settings infrastructure (SettingsRepository/PreferencesManager)
+ * still supports hapticsEnabled/soundEnabled unchanged, for other
+ * NeonCoreLabs apps — SettingsViewModel simply isn't consumed by this
+ * screen for that purpose (an earlier version of this file did wire a
+ * completion haptic through SettingsViewModel.hapticsEnabled; removed
+ * in the same change that revised the spec).
  */
 @Composable
 fun CalcScreen(
@@ -75,10 +74,7 @@ fun CalcScreen(
 ) {
     val factory = remember(container) { calcViewModelFactory(container) }
     val calcViewModel: CalcViewModel = viewModel(factory = factory)
-    val settingsViewModel: SettingsViewModel = viewModel(factory = factory)
     val uiState by calcViewModel.uiState.collectAsState()
-    val hapticsEnabled by settingsViewModel.hapticsEnabled.collectAsState()
-    val haptics = LocalHapticFeedback.current
 
     // Screen-level navigation/mode state — NOT owned by CalcViewModel.
     var historyOpen by remember { mutableStateOf(false) }
@@ -87,16 +83,14 @@ fun CalcScreen(
     // Execution Pulse trigger: an ever-increasing counter, passed to
     // CalcDisplay, incremented only on a genuine COMPUTING -> READY
     // edge (see the LaunchedEffect below) — not on every recomposition
-    // where status happens to equal READY.
+    // where status happens to equal READY. Drives the visual fade +
+    // sweep only; no haptic is fired (see class doc comment above).
     var pulseTrigger by remember { mutableIntStateOf(0) }
     var previousStatus by remember { mutableStateOf(CalcStatus.READY) }
 
     LaunchedEffect(uiState.status) {
         if (previousStatus == CalcStatus.COMPUTING && uiState.status == CalcStatus.READY) {
             pulseTrigger++
-            if (hapticsEnabled) {
-                haptics.performHapticFeedback(HapticFeedbackType.Confirm)
-            }
         }
         previousStatus = uiState.status
     }

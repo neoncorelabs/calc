@@ -36,10 +36,12 @@ import neoncore.theme.NeonSpacing
  * change." Same pattern as ExecutionSweepLine, which this composable
  * embeds directly beneath the result.
  *
- * Implements §18 steps 1-3 (the two ViewModel/status-driven steps —
- * 4, the status color change, and 5, the haptic — are CalcScreen's
- * responsibility, not this composable's, since they don't involve
- * anything Display renders):
+ * Implements §18 steps 1-3 (step 4, the status color change, is
+ * CalcScreen's responsibility, not this composable's, since it
+ * doesn't involve anything Display renders. Step 5, the completion
+ * haptic, no longer applies — CALC does not use haptic or sound
+ * feedback, a revision to §15/§18; see CalcScreen.kt's doc comment
+ * for the full rationale):
  *   1. Expression fades to 60% opacity over 80ms.
  *   2. Result's numeric transition over 180ms — NOTE: implemented
  *      here as a plain, immediate text swap, NOT a true digit-by-digit
