@@ -1,6 +1,7 @@
 package calc.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,6 +24,7 @@ import calc.viewmodel.AppContainer
 import calc.viewmodel.CalcScreenStatus
 import calc.viewmodel.CalcStatus
 import calc.viewmodel.CalcViewModel
+import calc.viewmodel.HistoryViewModel
 import calc.viewmodel.calcViewModelFactory
 import neoncore.components.StatusHeader
 import neoncore.theme.NeonDark
@@ -74,7 +76,9 @@ fun CalcScreen(
 ) {
     val factory = remember(container) { calcViewModelFactory(container) }
     val calcViewModel: CalcViewModel = viewModel(factory = factory)
+    val historyViewModel: HistoryViewModel = viewModel(factory = factory)
     val uiState by calcViewModel.uiState.collectAsState()
+    val historyEntries by historyViewModel.history.collectAsState()
 
     // Screen-level navigation/mode state — NOT owned by CalcViewModel.
     var historyOpen by remember { mutableStateOf(false) }
@@ -106,11 +110,21 @@ fun CalcScreen(
         color = NeonDark.Background0
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            StatusHeader(
-                moduleName = "CALC",
-                subtitle = "Precision Engine",
-                status = screenStatus.toNeonStatus()
-            )
+            // TEMPORARY: tap the header to toggle History Screen open,
+            // purely so this batch's HistoryScreen is reachable for
+            // verification before the real swipe-down gesture (§7) is
+            // built in the later gesture-handling priority. Remove
+            // this clickable wrapper (not the StatusHeader itself)
+            // once that gesture replaces it — not a spec requirement,
+            // just a throwaway trigger per this batch's own note not
+            // to over-invest here.
+            Box(modifier = Modifier.clickable { historyOpen = !historyOpen }) {
+                StatusHeader(
+                    moduleName = "CALC",
+                    subtitle = "Precision Engine",
+                    status = screenStatus.toNeonStatus()
+                )
+            }
 
             CalcDisplay(
                 expression = uiState.expression,
@@ -133,6 +147,31 @@ fun CalcScreen(
                     horizontal = NeonSpacing.MarginHorizontal,
                     vertical = NeonSpacing.Medium
                 )
+            )
+        }
+
+        // History Screen (CALC-UI-01 §8): shown as a full-screen
+        // overlay swapped in over the Home Screen content above, while
+        // historyOpen is true. No spec dictates the transition
+        // mechanism (overlay vs. separate composable vs. nav) — this
+        // is the simplest option that keeps CalcScreen's existing
+        // Home Screen structure untouched rather than a larger
+        // rewrite, per this batch's explicit scope.
+        //
+        // Nothing currently SETS historyOpen = true — that's the
+        // swipe-down gesture (§7), explicitly deferred to the later
+        // gesture-handling priority. historyOpen is still wired
+        // through end-to-end (state -> StatusHeader label -> this
+        // overlay) so plugging in that gesture later is a one-line
+        // change, not a restructure.
+        if (historyOpen) {
+            HistoryScreen(
+                history = historyEntries,
+                onLoadEntry = { entry -> calcViewModel.loadFromHistory(entry) },
+                onDeleteEntry = { id -> historyViewModel.deleteEntry(id) },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(NeonDark.Background0)
             )
         }
     }

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import calc.engine.EngineFacade
 import calc.engine.EvalResult
+import calc.model.HistoryEntry
 import calc.storage.HistoryRepository
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -125,6 +126,39 @@ class CalcViewModel(
      */
     fun onClear() {
         _uiState.value = CalcUiState()
+    }
+
+    /**
+     * Loads a history card back into the active calculator (CALC-UI-01
+     * §8: "Tap / Loads calculation"). Called from HistoryScreen via a
+     * callback passed down from CalcScreen — HistoryScreen's
+     * composables don't hold a CalcViewModel reference directly, same
+     * cross-ViewModel-boundary pattern already established elsewhere
+     * in this project (History/Memory read their own repositories
+     * independently rather than routing through CalcViewModel, per
+     * CALC-ARCH-01 §5).
+     *
+     * Deliberately does NOT re-run EngineFacade against
+     * entry.expression. HistoryEntry's own doc comment (CALC-DATA-01
+     * §2.1.1) establishes that history cards must always show exactly
+     * what the user saw at calculation time, even if formatting rules
+     * change later — re-evaluating instead of reusing the stored
+     * result/resultRaw would risk breaking that invariant.
+     *
+     * Reconstructs the same CalcUiState shape a successful onEquals()
+     * leaves behind (status = READY, preview mirrors result) so
+     * tapping a history card feels like having just pressed `=` on
+     * that expression — the calculator is immediately ready to
+     * continue from that result (e.g. typing `+5` next).
+     */
+    fun loadFromHistory(entry: HistoryEntry) {
+        _uiState.value = CalcUiState(
+            expression = entry.expression,
+            preview = entry.result,
+            result = entry.result,
+            resultRaw = entry.resultRaw,
+            status = CalcStatus.READY
+        )
     }
 
     /**
