@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -18,7 +20,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
+import android.content.res.Configuration
 import androidx.lifecycle.viewmodel.compose.viewModel
 import calc.viewmodel.AppContainer
 import calc.viewmodel.CalcScreenStatus
@@ -45,14 +49,39 @@ import neoncore.theme.NeonSpacing
  * doc comment ("or a future light-weight ScreenViewModel if
  * navigation state grows more complex than two booleans").
  *
- * NOTE: historyOpen/scientificMode are currently plumbed through but
- * not yet ACTED on — there's no History screen or Scientific Mode
- * keypad composable to switch to yet (those are later UI batches).
- * The state and the StatusHeader label are wired correctly now so
- * that plugging in those screens later doesn't require touching this
- * composition root's structure again, but toggling either currently
- * only changes the header label, nothing else on screen. Flagging so
- * this isn't mistaken for a finished multi-screen flow.
+ * NOTE: historyOpen is still only reachable via the temporary
+ * tap-on-header trigger (Batch K) — the real swipe-down gesture (§7)
+ * remains deferred to the later gesture-handling priority.
+ *
+ * scientificMode (this batch): now driven by REAL landscape detection
+ * via LocalConfiguration, per §9 ("Landscape or Expand gesture").
+ * `android:configChanges="orientation|screenSize|screenLayout"` was
+ * added to the manifest so rotation doesn't tear down and recreate
+ * the Activity — CalcViewModel's state already survives that via
+ * ViewModel's own config-change survival, but this screen's plain
+ * `remember` booleans (historyOpen, scientificMode itself, pulse
+ * tracking state) would NOT survive an Activity recreation, so
+ * avoiding the recreation entirely is simpler and safer than trying
+ * to rememberSaveable every one of them individually. The "Expand
+ * gesture" half of §9's trigger is NOT implemented here — that's a
+ * manual override on top of the orientation-driven default, deferred
+ * to the later gesture-handling priority alongside swipe-down/
+ * swipe-left/pinch — but the plain orientation check alone already
+ * satisfies "Landscape" as a real, working trigger, not a stub.
+ *
+ * LAYOUT NOTE (this batch): the Home Screen Column is now scrollable.
+ * Rough height budget with Scientific Mode's keypad added: CalcDisplay
+ * is a fixed 192dp (CalcDisplay.kt), the main CalcKeypad is ~440dp
+ * (5 rows x 72dp + 4x8dp gaps + 2x24dp vertical padding), and
+ * ScientificKeypad adds ~168dp more (2 rows x 64dp + 1x8dp gap +
+ * 2x16dp padding) — before the header and divider. That's comfortably
+ * over 800dp total, while a typical phone in landscape is often only
+ * ~360-411dp tall. Without scroll, the scientific row (or worse, part
+ * of the main keypad) would clip off-screen in landscape. Portrait
+ * mode fits within this budget already and scrolling should be a
+ * no-op there in practice — this wasn't reverified against every
+ * screen size, so if a very short/dense device shows unwanted scroll
+ * in portrait, that's the first thing to check.
  *
  * EXECUTION PULSE (§18, revised): this composable owns detecting the
  * COMPUTING -> READY transition and driving `pulseTrigger`, which
@@ -82,7 +111,19 @@ fun CalcScreen(
 
     // Screen-level navigation/mode state — NOT owned by CalcViewModel.
     var historyOpen by remember { mutableStateOf(false) }
-    var scientificMode by remember { mutableStateOf(false) }
+
+    // scientificMode (§9: "Landscape or Expand gesture"). Landscape
+    // half implemented here via LocalConfiguration — recomputed on
+    // every recomposition, which is fine/cheap for a single int
+    // comparison, and correctly reactive to real rotation now that
+    // the manifest's configChanges keeps this composable alive across
+    // rotation instead of recreating the Activity. The "Expand
+    // gesture" half (a manual override independent of orientation) is
+    // deferred to the later gesture-handling priority — see class doc
+    // comment above.
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val scientificMode = isLandscape
 
     // Execution Pulse trigger: an ever-increasing counter, passed to
     // CalcDisplay, incremented only on a genuine COMPUTING -> READY
@@ -109,7 +150,11 @@ fun CalcScreen(
         modifier = modifier.fillMaxSize(),
         color = NeonDark.Background0
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+        ) {
             // TEMPORARY: tap the header to toggle History Screen open,
             // purely so this batch's HistoryScreen is reachable for
             // verification before the real swipe-down gesture (§7) is
@@ -148,6 +193,22 @@ fun CalcScreen(
                     vertical = NeonSpacing.Medium
                 )
             )
+
+            // Scientific Mode keypad (§9): additional functions appear
+            // below the main keypad while scientificMode is true (real
+            // landscape detection now, see class doc comment above).
+            // Routed through the same handleKeyAction as CalcKeypad —
+            // ScientificKeypad emits the same CalcKeyAction.Insert
+            // type, so no separate dispatch path is needed.
+            if (scientificMode) {
+                ScientificKeypad(
+                    onAction = { action -> handleKeyAction(action, calcViewModel) },
+                    modifier = Modifier.padding(
+                        horizontal = NeonSpacing.MarginHorizontal,
+                        vertical = NeonSpacing.Small
+                    )
+                )
+            }
         }
 
         // History Screen (CALC-UI-01 §8): shown as a full-screen
